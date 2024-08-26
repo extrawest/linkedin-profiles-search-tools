@@ -38,13 +38,20 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
 Object.defineProperty(exports, "__esModule", { value: true });
 var fs = require("fs");
 var csv_parse_1 = require("csv-parse");
-var google_custom_search_1 = require("@langchain/community/tools/google_custom_search");
 require("dotenv/config");
-var getGoogleResults = function (input) { return __awaiter(void 0, void 0, void 0, function () {
-    var search, request, results, links, e_1;
+var google_custom_search_1 = require("@langchain/community/tools/google_custom_search");
+var prompts_1 = require("@langchain/core/prompts");
+var openai_1 = require("@langchain/openai");
+var getGoogleResults = function (input, link) { return __awaiter(void 0, void 0, void 0, function () {
+    var links, search, request, results, e_1;
     return __generator(this, function (_a) {
         switch (_a.label) {
             case 0:
+                links = {
+                    linkedinLinks: [],
+                    name: input,
+                    link: link
+                };
                 search = new google_custom_search_1.GoogleCustomSearch({
                     apiKey: process.env.GOOGLE_API_KEY,
                     googleCSEId: process.env.GOOGLE_CSE_ID,
@@ -56,38 +63,92 @@ var getGoogleResults = function (input) { return __awaiter(void 0, void 0, void 
             case 2:
                 request = _a.sent();
                 results = JSON.parse(request);
-                links = results.map(function (result) { return result.link; });
-                return [2 /*return*/, links];
+                links.linkedinLinks = results.map(function (result) { return result.link; });
+                return [3 /*break*/, 4];
             case 3:
                 e_1 = _a.sent();
                 console.error('Custom search error', e_1);
                 return [3 /*break*/, 4];
-            case 4: return [2 /*return*/];
+            case 4: return [2 /*return*/, links];
         }
     });
 }); };
 var parseDocument = function (path) {
     var csvData = [];
-    fs.createReadStream(path)
-        .pipe((0, csv_parse_1.parse)({ delimiter: ':' }))
-        .on('data', function (csvrow) {
-        csvData.push(csvrow);
-    })
-        .on('end', function () {
-        console.log('document parsed');
+    return new Promise(function (resolve, reject) {
+        fs.createReadStream(path)
+            .pipe((0, csv_parse_1.parse)({ delimiter: ',' }))
+            .on('data', function (csvrow) {
+            csvData.push(csvrow);
+        })
+            .on('end', function () {
+            resolve(csvData);
+        });
     });
-    return csvData;
 };
 var main = function () { return __awaiter(void 0, void 0, void 0, function () {
-    var csvData, links;
+    var csvData, requiredData, data, model, prompt, chain, resultLinks;
     return __generator(this, function (_a) {
         switch (_a.label) {
-            case 0:
-                csvData = parseDocument('./data/companies.csv');
-                return [4 /*yield*/, getGoogleResults('InnoPower linkedin.com profile')];
+            case 0: return [4 /*yield*/, parseDocument('./data/companies_kv.csv')];
             case 1:
-                links = _a.sent();
-                console.log(links);
+                csvData = _a.sent();
+                console.log('csvData', csvData[0], csvData[1]);
+                requiredData = [];
+                if (Array.isArray(csvData) && csvData[0][0] === 'name' && csvData[0][1] === 'link') {
+                    requiredData.push.apply(requiredData, csvData.slice(1, 5)); //TODO: delte 5
+                }
+                else {
+                    throw new Error('Wrong document format');
+                }
+                return [4 /*yield*/, Promise.all(requiredData.map(function (row) {
+                        return new Promise(function (resolve, reject) {
+                            if (row[0] && row[1]) {
+                                resolve(getGoogleResults(row[0], row[1]));
+                            }
+                            else {
+                                reject('Data has format issue');
+                            }
+                        });
+                    }))];
+            case 2:
+                data = _a.sent();
+                console.log('data', data[0]);
+                model = new openai_1.ChatOpenAI({
+                    model: "gpt-3.5-turbo",
+                    openAIApiKey: process.env.OPENAI_API_KEY,
+                });
+                prompt = prompts_1.ChatPromptTemplate.fromMessages([
+                    ["system", "You are a helpful AI assistant. You will be given a company name and a list of LinkedIn links. Your task is to choose the one link that most accurately represents the profile of the given company. Usually correct link contains string 'company'. Analyze the given text and return the result in JSON format with the following key: 'linkedinLink'."],
+                    ["human", "Company name is {name}. List of links: {links}"],
+                ]);
+                chain = prompt.pipe(model);
+                return [4 /*yield*/, Promise.all(data.map(function (company) {
+                        return new Promise(function (resolve, reject) { return __awaiter(void 0, void 0, void 0, function () {
+                            var res, linkedinLink;
+                            var _a, _b, _c;
+                            return __generator(this, function (_d) {
+                                switch (_d.label) {
+                                    case 0: return [4 /*yield*/, chain.invoke({
+                                            name: company.name,
+                                            links: company.linkedinLinks
+                                        })];
+                                    case 1:
+                                        res = _d.sent();
+                                        linkedinLink = (_c = (_b = JSON.parse((_a = res === null || res === void 0 ? void 0 : res.content) !== null && _a !== void 0 ? _a : '')) === null || _b === void 0 ? void 0 : _b.linkedinLink) === null || _c === void 0 ? void 0 : _c.trim();
+                                        resolve({
+                                            name: company.name,
+                                            link: company.link,
+                                            linkedinLink: linkedinLink !== null && linkedinLink !== void 0 ? linkedinLink : 'not found'
+                                        });
+                                        return [2 /*return*/];
+                                }
+                            });
+                        }); });
+                    }))];
+            case 3:
+                resultLinks = _a.sent();
+                console.log(resultLinks);
                 return [2 /*return*/];
         }
     });

@@ -10,7 +10,10 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@langchain/anthropic": "^0.2.15",
     "@langchain/community": "^0.2.31",
+    "@langchain/ollama": "^0.0.4",
+    "@langchain/openai": "^0.2.7",
     "csv-parse": "^5.5.6",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
