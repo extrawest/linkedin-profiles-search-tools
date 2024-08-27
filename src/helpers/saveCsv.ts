@@ -5,7 +5,7 @@ export const saveCsv = async (resultLinks: Result[]) => {
     const date = Date.now();
     const filename = `./result/linkedin-${date}.csv`;
     const dataCSV = resultLinks.reduce((acc, link) => {
-        acc += `${link.name}, ${link.link}, ${link.linkedinLink}\n`;
+        acc += `${link.name}, ${link.link}, ${link.linkedinLink ?? 'not found'}\n`;
         return acc;
       }, 
       `name, link, linkedinLink\n`);
