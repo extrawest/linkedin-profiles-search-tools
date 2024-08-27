@@ -1,52 +1,10 @@
-import * as fs from "fs";
-import { writeFile } from 'fs/promises';
-import { parse } from 'csv-parse';
 import "dotenv/config";
-import { GoogleCustomSearch } from "@langchain/community/tools/google_custom_search";
 import  { ChatPromptTemplate } from "@langchain/core/prompts";
 import { Result, SearchResult } from "./types";
 import { ChatOpenAI } from "@langchain/openai";
-
-const getGoogleResults = async (input: string, link: string) => {
-  const links: SearchResult = {
-    linkedinLinks: [],
-    name: input,
-    link
-  }
-  const search = new GoogleCustomSearch({
-    apiKey: process.env.GOOGLE_API_KEY,
-    googleCSEId: process.env.GOOGLE_CSE_ID,
-  });
-
-  try {
-    const request = await search.invoke(
-      `${input} linkedin.com profile`,
-    );
-
-    const results = JSON.parse(request) as { link: string }[];
-    console.log('LINKS', results)
-    links.linkedinLinks = results.map(result => result.link);
-  } catch (e) {
-    console.error('Custom search error', e);
-  }
-
-  return links;
-}
-
-
-const parseDocument =  (path: string) => {
-  const csvData: string[][]=[];
-  return new Promise((resolve, reject) => {
-    fs.createReadStream(path)
-    .pipe(parse({delimiter: ','}))
-    .on('data', function(csvrow: string[]) {
-        csvData.push(csvrow);        
-    })
-    .on('end',function() {
-      resolve(csvData)
-    });
-  })
-}
+import { parseDocument } from './helpers/parseDocument';
+import { getGoogleResults } from './helpers/getGoogleResults';
+import { saveCsv } from './helpers/saveCsv';
 
 const main = async () => {
   const csvData = await parseDocument('./data/companies_kv.csv');
@@ -55,7 +13,7 @@ const main = async () => {
   console.log('DOCUMENT PARSED')
 
   if (Array.isArray(csvData) && csvData[0][0] === 'name' && csvData[0][1] === 'link') {
-    requiredData.push(...(csvData as [string, string][]).slice(5, 10)); //TODO: delte 5
+    requiredData.push(...(csvData as [string, string][]).slice(5, 10)); //TODO: use (1) instead of test data
   } else {
     throw new Error('Wrong document format');
   }
@@ -71,8 +29,6 @@ const main = async () => {
   }));
 
   console.log('GOOGLE REQUESTS FINESHED')
-
-  console.log('data', data[0]);
 
   const model = new ChatOpenAI({ 
     model: "gpt-3.5-turbo",
@@ -93,8 +49,7 @@ const main = async () => {
         name: company.name,
         links: company.linkedinLinks
       });
-      console.log(11, res?.content, 11, 'res?.content')
-      const content = (res?.content as string)?.replace('```json', '').replace('```', '');
+      const content = (res?.content as string)?.replace('```json', '').replace('```', ''); //TODO: solution for extra symbols
       const linkedinLink = JSON.parse(content ?? '')?.linkedinLink?.trim();
       resolve({
         name: company.name,
@@ -102,26 +57,11 @@ const main = async () => {
         linkedinLink: linkedinLink ?? 'not found'
       })
     })
-  }))
+  }));
 
-  console.log('RESULTED LINKS READY')
+  console.log('RESULTED LINKS READY');
 
-  const date = Date.now();
-  const filename = `./result/linkedin-${date}.csv`;
-
-  const dataCSV = (resultLinks as Result[]).reduce((acc, link) => {
-      acc += `${link.name}, ${link.link}, ${link.linkedinLink}\n`;
-      return acc;
-    }, 
-    `name, link, linkedinLink\n`);
-  
-   writeFile(filename, dataCSV, 'utf8')
-    .then(() => {
-      console.log('file writen')
-    })
-    .catch((error) => {
-      console.error(error)
-    })
+  await saveCsv(resultLinks as Result[]);
 };
 
 main();
