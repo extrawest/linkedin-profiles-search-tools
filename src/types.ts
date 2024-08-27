@@ -3,3 +3,9 @@ export interface SearchResult {
   name: string,
   link: string
 }
+
+export interface Result {
+  linkedinLink: string,
+  name: string,
+  link: string
+}

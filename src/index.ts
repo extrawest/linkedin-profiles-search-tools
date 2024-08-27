@@ -1,9 +1,10 @@
 import * as fs from "fs";
+import { writeFile } from 'fs/promises';
 import { parse } from 'csv-parse';
 import "dotenv/config";
 import { GoogleCustomSearch } from "@langchain/community/tools/google_custom_search";
 import  { ChatPromptTemplate } from "@langchain/core/prompts";
-import { SearchResult } from "./types";
+import { Result, SearchResult } from "./types";
 import { ChatOpenAI } from "@langchain/openai";
 
 const getGoogleResults = async (input: string, link: string) => {
@@ -23,6 +24,7 @@ const getGoogleResults = async (input: string, link: string) => {
     );
 
     const results = JSON.parse(request) as { link: string }[];
+    console.log('LINKS', results)
     links.linkedinLinks = results.map(result => result.link);
   } catch (e) {
     console.error('Custom search error', e);
@@ -48,11 +50,12 @@ const parseDocument =  (path: string) => {
 
 const main = async () => {
   const csvData = await parseDocument('./data/companies_kv.csv');
-  console.log('csvData', csvData[0], csvData[1]);
   const requiredData: [string, string][] = []
 
+  console.log('DOCUMENT PARSED')
+
   if (Array.isArray(csvData) && csvData[0][0] === 'name' && csvData[0][1] === 'link') {
-    requiredData.push(...(csvData as [string, string][]).slice(1, 5)); //TODO: delte 5
+    requiredData.push(...(csvData as [string, string][]).slice(5, 10)); //TODO: delte 5
   } else {
     throw new Error('Wrong document format');
   }
@@ -67,6 +70,8 @@ const main = async () => {
     })
   }));
 
+  console.log('GOOGLE REQUESTS FINESHED')
+
   console.log('data', data[0]);
 
   const model = new ChatOpenAI({ 
@@ -75,7 +80,7 @@ const main = async () => {
 });
 
   const prompt = ChatPromptTemplate.fromMessages([
-    ["system", "You are a helpful AI assistant. You will be given a company name and a list of LinkedIn links. Your task is to choose the one link that most accurately represents the profile of the given company. Usually correct link contains string '/company/'. Analyze the given text and return the result in JSON format with the following key: 'linkedinLink'."],
+    ["system", "You are a helpful AI assistant. You will be given a company name and a list of LinkedIn links. Your task is to choose the one link that most accurately represents the profile of the given company. Usually correct link contains string '/company/'. Analyze the given text and return the result as JSON with the following key: 'linkedinLink'. If links are not provided or data has incorrect format return JSON object with key 'linkedinLink' and value 'Not found'"],
     ["human", "Company name is {name}. List of links: {links}"],
   ]);
 
@@ -83,11 +88,14 @@ const main = async () => {
 
   const resultLinks = await Promise.all((data as SearchResult[]).map(company => {
     return new Promise(async (resolve, reject) => {
+      console.log(company, 'COMPANY')
       const res = await chain.invoke({
         name: company.name,
         links: company.linkedinLinks
       });
-      const linkedinLink = JSON.parse(res?.content as string ?? '')?.linkedinLink?.trim();
+      console.log(11, res?.content, 11, 'res?.content')
+      const content = (res?.content as string)?.replace('```json', '').replace('```', '');
+      const linkedinLink = JSON.parse(content ?? '')?.linkedinLink?.trim();
       resolve({
         name: company.name,
         link: company.link,
@@ -96,8 +104,24 @@ const main = async () => {
     })
   }))
 
-  console.log(resultLinks)
+  console.log('RESULTED LINKS READY')
 
+  const date = Date.now();
+  const filename = `./result/linkedin-${date}.csv`;
+
+  const dataCSV = (resultLinks as Result[]).reduce((acc, link) => {
+      acc += `${link.name}, ${link.link}, ${link.linkedinLink}\n`;
+      return acc;
+    }, 
+    `name, link, linkedinLink\n`);
+  
+   writeFile(filename, dataCSV, 'utf8')
+    .then(() => {
+      console.log('file writen')
+    })
+    .catch((error) => {
+      console.error(error)
+    })
 };
 
 main();
