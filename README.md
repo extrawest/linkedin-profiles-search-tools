@@ -1,4 +1,4 @@
-# Linkedin profiles scrapper
+# Linkedin profiles search tool
 
 This app handles csv document with companies names. Using AI tools searches for the most possible linkedin page of this company.
 
