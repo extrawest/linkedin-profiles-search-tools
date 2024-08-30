@@ -21,7 +21,7 @@ export const getGoogleResults = async (input: string, link: string) => {
             `${input} linkedin.com profile`,
         );
       
-        const results = JSON.parse(request) as { link: string }[];
+        const results = JSON.parse(request) as { link: string, snippet: string, title: string }[];
 
         return results;
       }
@@ -34,7 +34,7 @@ export const getGoogleResults = async (input: string, link: string) => {
       }
 
       console.log('LINKS', input, results.slice(0, 2))
-      links.linkedinLinks = results.map(result => result.link);
+      links.linkedinLinks = results.map(result => `${result.link} ${result.snippet} ${result.title}`);
     } catch (e) {
       console.error('Custom search error', e);
     }
