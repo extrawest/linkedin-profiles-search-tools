@@ -19,3 +19,4 @@ OPENAI_API_KEY=
 - run app
 ```npm start```
 - Result will be writen in 'result' repository 
+- Also result will we saved in Google Sheets https://docs.google.com/spreadsheets/d/11l5o76gbmLEIRCnCeGFXYf184ZJm9k_kcFLMhNIxfx4/edit?gid=1840660951#gid=1840660951 in the last sheet.
