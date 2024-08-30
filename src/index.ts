@@ -7,9 +7,10 @@ import { getGoogleResults } from './helpers/getGoogleResults';
 import { saveCsv } from './helpers/saveCsv';
 import { delay } from "./helpers/delay";
 import { z } from "zod";
+import { saveDataToGoogleSheet } from "./helpers/saveToGoogleSheets";
 
 const main = async () => {
-  const csvData = await parseDocument('./data/companies_kv.csv');
+  const csvData = await parseDocument('./data/companies.csv');
   const requiredData: [string, string][] = []
 
   console.log('DOCUMENT PARSED')
@@ -46,8 +47,13 @@ const main = async () => {
 
 
   const prompt = ChatPromptTemplate.fromMessages([
-    ["system", "You are a helpful AI assistant. You will be given a company name and a list of LinkedIn links. Your task is to choose the one link that most accurately represents the profile of the given company. Usually correct link contains string '/company/'. Analyze the given text and return just resulted link as a single string. If links are not provided or data has incorrect format return 'Not found'"],
-    ["human", "Company name is {name}. List of links: {links}"],
+    ["system", `You are a helpful AI assistant. 
+      You will be given a company name and a list of LinkedIn links with description.
+      Your task is to choose the one link that most accurately represents the profile of the given company.
+      Correct link always contains string '/company/'.
+      Analyze the given text and return just resulted link as a single string.
+      If links are not provided or data has incorrect format return 'Not found'`],
+    ["human", "Company name is {name}. List of links with description: {links}"],
   ]);
 
   const chain = prompt.pipe(structuredLlm);
@@ -71,6 +77,8 @@ const main = async () => {
   console.log('RESULTED LINKS READY');
 
   await saveCsv(resultLinks as Result[]);
+
+  saveDataToGoogleSheet(resultLinks as Result[])
 };
 
 main();

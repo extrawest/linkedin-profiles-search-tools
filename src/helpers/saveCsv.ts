@@ -1,6 +1,7 @@
 import { writeFile } from 'fs/promises';
 import { Result } from "../types";
 
+
 export const saveCsv = async (resultLinks: Result[]) => {
     const date = Date.now();
     const filename = `./result/linkedin-${date}.csv`;
